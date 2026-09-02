@@ -1,14 +1,35 @@
+import json
+import os
 import discord
 from discord.ext import commands
+
+DATA_FILE = os.path.join(os.path.dirname(__file__), "reaction_roles.json")
+DEBUG_CHANNEL_ID = int(os.getenv("DEBUG_CHANNEL_ID", 0)) or None
 
 
 class roles(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.reaction_roles = {}
+        self.reaction_roles = self._load_data()
+
+    def _load_data(self):
+        if not os.path.exists(DATA_FILE):
+            return {}
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+            return {int(msg_id): mapping for msg_id, mapping in raw.items()}
+        except (json.JSONDecodeError, ValueError) as e:
+            return {}
+
+    def _save_data(self):
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(self.reaction_roles, f, indent=2)
 
     async def _debug_reaction(self, payload, message):
-        channel = self.bot.get_channel(payload.channel_id)
+        if DEBUG_CHANNEL_ID is None:
+            return
+        channel = self.bot.get_channel(DEBUG_CHANNEL_ID)
         if channel is None:
             return
         try:
@@ -40,7 +61,7 @@ class roles(commands.Cog):
         await self._debug_reaction(payload, f"reaction_add received: {payload.emoji} user={payload.user_id} msg={payload.message_id}")
 
         if payload.guild_id is None or payload.message_id not in self.reaction_roles:
-            await self._debug_reaction(payload, f"reaction_add ignored: message not tracked")
+            await self._debug_reaction(payload, "reaction_add ignored: message not tracked")
             return
         if payload.user_id == self.bot.user.id:
             await self._debug_reaction(payload, "reaction_add ignored: bot reaction")
@@ -72,15 +93,20 @@ class roles(commands.Cog):
             await self._debug_reaction(payload, f"reaction_add ignored: {member.mention} already has {role.name}")
             return
 
-        await member.add_roles(role)
-        await self._debug_reaction(payload, f"reaction_add: gave {member.mention} the role {role.name}")
+        try:
+            await member.add_roles(role)
+            await self._debug_reaction(payload, f"reaction_add: gave {member.mention} the role {role.name}")
+        except discord.Forbidden:
+            await self._debug_reaction(payload, f"reaction_add FAILED: missing permission to give {role.name} (check role hierarchy)")
+        except discord.HTTPException as e:
+            await self._debug_reaction(payload, f"reaction_add FAILED: {e}")
 
     @commands.Cog.listener()
     async def on_raw_reaction_remove(self, payload):
         await self._debug_reaction(payload, f"reaction_remove received: {payload.emoji} user={payload.user_id} msg={payload.message_id}")
 
         if payload.guild_id is None or payload.message_id not in self.reaction_roles:
-            await self._debug_reaction(payload, f"reaction_remove ignored: message not tracked")
+            await self._debug_reaction(payload, "reaction_remove ignored: message not tracked")
             return
 
         guild = self.bot.get_guild(payload.guild_id)
@@ -109,8 +135,13 @@ class roles(commands.Cog):
             await self._debug_reaction(payload, f"reaction_remove ignored: {member.mention} does not have {role.name}")
             return
 
-        await member.remove_roles(role)
-        await self._debug_reaction(payload, f"reaction_remove: removed {role.name} from {member.mention}")
+        try:
+            await member.remove_roles(role)
+            await self._debug_reaction(payload, f"reaction_remove: removed {role.name} from {member.mention}")
+        except discord.Forbidden:
+            await self._debug_reaction(payload, f"reaction_remove FAILED: missing permission to remove {role.name} (check role hierarchy)")
+        except discord.HTTPException as e:
+            await self._debug_reaction(payload, f"reaction_remove FAILED: {e}")
 
     @commands.command()
     async def addrole(self, ctx, user: discord.Member, role: discord.Role):
@@ -121,8 +152,6 @@ class roles(commands.Cog):
                 return
             await user.add_roles(role)
             await ctx.send(f"✅ {user.mention} has been given the role: {role.name}.")
-            if "test" in role.name.lower():
-                await user.remove_roles(role)
         except discord.Forbidden:
             await ctx.send("❌ I do not have permission to add that role.")
         except discord.HTTPException:
@@ -142,13 +171,21 @@ class roles(commands.Cog):
         except discord.HTTPException:
             await ctx.send("❌ An error occurred while trying to remove the role.")
 
+    async def _resolve_role(self, ctx, role_arg):
+        try:
+            return await commands.RoleConverter().convert(ctx, role_arg)
+        except commands.BadArgument:
+            if role_arg.isdigit():
+                return discord.utils.get(ctx.guild.roles, id=int(role_arg))
+            return None
+
     @commands.command()
     async def reactionrole(self, ctx, *args):
         """Creates a reaction-role embed with multiple emoji-to-role assignments."""
         if len(args) == 0 or len(args) % 2 != 0:
             await ctx.send(
-                "Usage: `!reactionrole <emoji> <role> <emoji> <role> ...`\n"
-                "Example: `!reactionrole 😀 @Members 🤖 @Bots`"
+                "Usage: `$reactionrole <emoji> <role> <emoji> <role> ...`\n"
+                "Example: `$reactionrole 😀 @Members 🤖 @Bots`"
             )
             return
 
@@ -158,14 +195,7 @@ class roles(commands.Cog):
             emoji = args[i]
             role_arg = args[i + 1]
 
-            try:
-                role = await commands.RoleConverter().convert(ctx, role_arg)
-            except commands.BadArgument:
-                if role_arg.isdigit():
-                    role = discord.utils.get(ctx.guild.roles, id=int(role_arg))
-                else:
-                    role = None
-
+            role = await self._resolve_role(ctx, role_arg)
             if role is None:
                 await ctx.send(f"❌ Could not find the role: `{role_arg}`")
                 return
@@ -182,18 +212,14 @@ class roles(commands.Cog):
             color=discord.Color.blurple(),
         )
 
-        field_lines = []
-        for emoji, role_id in mapping.items():
-            role = ctx.guild.get_role(role_id)
-            if role is not None:
-                field_lines.append(f"{emoji} - {role.mention}")
-
+        field_lines = [f"{emoji} - <@&{role_id}>" for emoji, role_id in mapping.items()]
         if field_lines:
             embed.description = "\n".join(field_lines)
 
         try:
             message = await ctx.send(embed=embed)
             self.reaction_roles[message.id] = mapping
+            self._save_data()
 
             for emoji in mapping:
                 await message.add_reaction(emoji)
@@ -203,6 +229,51 @@ class roles(commands.Cog):
             await ctx.send("❌ I do not have permission to create the reaction-role message.")
         except discord.HTTPException:
             await ctx.send("❌ An error occurred while creating the reaction-role message.")
+
+    @commands.command()
+    async def editreactionroles(self, ctx, message_id: int, emoji: str, role_arg: str):
+        """Adds a new emoji-to-role mapping to an existing reaction-role message."""
+        if message_id not in self.reaction_roles:
+            await ctx.send(f"❌ Message ID `{message_id}` is not a tracked reaction-role message.")
+            return
+
+        role = await self._resolve_role(ctx, role_arg)
+        if role is None:
+            await ctx.send(f"❌ Could not find the role: `{role_arg}`")
+            return
+
+        if emoji in self.reaction_roles[message_id]:
+            await ctx.send(f"❌ {emoji} is already mapped on that message.")
+            return
+
+        try:
+            message = await ctx.channel.fetch_message(message_id)
+        except discord.NotFound:
+            await ctx.send("❌ Could not find that message in this channel (must be run in the same channel it was posted).")
+            return
+        except discord.Forbidden:
+            await ctx.send("❌ I do not have permission to fetch that message.")
+            return
+
+        self.reaction_roles[message_id][emoji] = role.id
+        self._save_data()
+
+        try:
+            await message.add_reaction(emoji)
+        except discord.HTTPException as e:
+            await ctx.send(f"⚠️ Mapping saved, but couldn't add the reaction to the message: {e}")
+            return
+
+        if message.embeds:
+            embed = message.embeds[0]
+            new_line = f"{emoji} - {role.mention}"
+            embed.description = f"{embed.description}\n{new_line}" if embed.description else new_line
+            try:
+                await message.edit(embed=embed)
+            except discord.HTTPException:
+                pass
+
+        await ctx.send(f"✅ Added {emoji} → {role.mention} to message `{message_id}`.")
 
 
 async def setup(bot):
