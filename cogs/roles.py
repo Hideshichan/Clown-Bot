@@ -11,6 +11,7 @@ class roles(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.reaction_roles = self._load_data()
+        self.debug_mode = False
 
     def _load_data(self):
         if not os.path.exists(DATA_FILE):
@@ -27,6 +28,8 @@ class roles(commands.Cog):
             json.dump(self.reaction_roles, f, indent=2)
 
     async def _debug_reaction(self, payload, message):
+        if self.debug_mode == False:
+            return
         if DEBUG_CHANNEL_ID is None:
             return
         channel = self.bot.get_channel(DEBUG_CHANNEL_ID)
@@ -55,6 +58,8 @@ class roles(commands.Cog):
                 return reaction_map[key]
 
         return None
+    
+
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
@@ -142,6 +147,18 @@ class roles(commands.Cog):
             await self._debug_reaction(payload, f"reaction_remove FAILED: missing permission to remove {role.name} (check role hierarchy)")
         except discord.HTTPException as e:
             await self._debug_reaction(payload, f"reaction_remove FAILED: {e}")
+            
+    @commands.command()
+    @commands.is_owner()
+    async def debugmode(self, ctx):
+        message = ""
+        channel = self.bot.get_channel(DEBUG_CHANNEL_ID)
+        self.debug_mode = not self.debug_mode
+        if self.debug_mode:
+            message = "✅ Debug mode is now ON. Debug messages will be sent to the debug channel."
+        else:
+            message = "❌ Debug mode is now OFF. Debug messages will not be sent."
+        await channel.send(message)
 
     @commands.command()
     async def addrole(self, ctx, user: discord.Member, role: discord.Role):

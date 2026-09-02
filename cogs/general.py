@@ -12,10 +12,12 @@ class General(commands.Cog):
             "Here are the available commands:\n"
             "`$help` - Displays this help message.\n"
             "`$addrole <user> <role>` - Adds a role to a user (requires appropriate permissions).\n"
-            "`$removerole <user> <role>` - Removes a role from a user (requires appropriate permissions).\n"
+            "`$rmrole <user> <role>` - Removes a role from a user (requires appropriate permissions).\n"
             "`$reactionrole <emoji> <role>` - Creates a reaction-role embed (requires appropriate permissions).\n"
+            "`$editreactionroles <message_id> <emoji> <role>` - Edits an existing reaction-role embed (requires appropriate permissions).\n"
             "`$reload <extension>` - Reloads a cog (owner only).\n"
             "`$load <extension>` - Loads a cog (owner only).\n"
+            "`$debugmode` - Toggles debug mode for reaction role events (owner only).\n"
         )
         embed = discord.Embed(
             title="Help",
