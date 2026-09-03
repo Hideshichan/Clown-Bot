@@ -10,7 +10,7 @@ class ErrorHandler(commands.Cog):
     async def on_command_error(self, ctx, error):
         if isinstance(error, commands.CommandNotFound):
             embed = discord.Embed(
-                description="❌ Not a valid command.",
+                description="❌ Not a valid command. Use $help to see valid commands.",
                 color=discord.Color.red()
             )
             msg = await ctx.send(embed=embed)
