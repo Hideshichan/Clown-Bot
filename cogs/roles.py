@@ -161,6 +161,7 @@ class roles(commands.Cog):
         await channel.send(message)
 
     @commands.command()
+    @commands.is_owner()
     async def addrole(self, ctx, user: discord.Member, role: discord.Role):
         """Adds a role to the user."""
         try:
@@ -175,6 +176,7 @@ class roles(commands.Cog):
             await ctx.send("❌ An error occurred while trying to add the role.")
 
     @commands.command()
+    @commands.is_owner()
     async def rmrole(self, ctx, user: discord.Member, role: discord.Role):
         """Removes a role from the user."""
         try:
@@ -197,6 +199,7 @@ class roles(commands.Cog):
             return None
 
     @commands.command()
+    @commands.is_owner()
     async def reactionrole(self, ctx, *args):
         """Creates a reaction-role embed with multiple emoji-to-role assignments."""
         if len(args) == 0 or len(args) % 2 != 0:
@@ -248,6 +251,7 @@ class roles(commands.Cog):
             await ctx.send("❌ An error occurred while creating the reaction-role message.")
 
     @commands.command()
+    @commands.is_owner()
     async def editreactionroles(self, ctx, message_id: int, emoji: str, role_arg: str):
         """Adds a new emoji-to-role mapping to an existing reaction-role message."""
         if message_id not in self.reaction_roles:
