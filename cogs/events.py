@@ -27,3 +27,6 @@ class Events(commands.Cog):
                 await attachment.save(f"./event_stuff/submissions/{user.name}_{attachment.filename}")
             except Exception as e:
                 await ctx.send(f"❌ Error saving image submission: {e}\nIf this is incorrect please contact me.")
+                
+async def setup(bot):
+    await bot.add_cog(Events(bot))
