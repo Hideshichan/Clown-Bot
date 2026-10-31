@@ -1,9 +1,23 @@
 services:
-  discord-bot:
-    build: .
+  bot:
+    image: ghcr.io/YOURUSER/YOURREPO:latest
     container_name: discord-bot
     restart: unless-stopped
-    env_file:
-      - .env
+    env_file: .env
+    environment:
+      - REACTION_ROLES_PATH=/data/reaction_roles.json
     volumes:
-      - ./cogs:/app/cogs
+      - ./data:/data
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+
+  watchtower:
+    image: nickfedor/watchtower:latest
+    container_name: watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_LABEL_ENABLE=true
+      - WATCHTOWER_POLL_INTERVAL=120
+      - WATCHTOWER_CLEANUP=true

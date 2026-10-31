@@ -3,7 +3,11 @@ import os
 import discord
 from discord.ext import commands
 
-DATA_FILE = os.path.join(os.path.dirname(__file__), "reaction_roles.json")
+DATA_FILE = os.environ.get(
+    "REACTION_ROLES_PATH",
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "reaction_roles.json"),
+)
+os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
 DEBUG_CHANNEL_ID = int(os.getenv("DEBUG_CHANNEL_ID", 0)) or None
 
 
