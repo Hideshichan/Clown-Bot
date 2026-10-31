@@ -44,4 +44,4 @@ async def on_message(message):
             #something here
             message.channel.send("this is just a placeholder")
 
-client.run('the bot key goes here')
+client.run('bot key goes here')
