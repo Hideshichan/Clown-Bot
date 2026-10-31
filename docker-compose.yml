@@ -1,6 +1,6 @@
 services:
   bot:
-    image: ghcr.io/YOURUSER/YOURREPO:latest
+    image: ghcr.io/hideshichan/clown-bot:latest
     container_name: discord-bot
     restart: unless-stopped
     env_file: .env
